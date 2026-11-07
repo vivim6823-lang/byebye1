@@ -1,0 +1,136 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff7df">
+  <meta name="description" content="Conheça o cardápio da Lanchonete: lanches, bebidas e sobremesas preparados com carinho.">
+  <title>Cardápio | Lanchonete</title>
+  <link rel="preconnect" href="https://images.unsplash.com">
+  <link rel="stylesheet" href="{% static 'cardapio/css/cardapio.css' %}">
+</head>
+<body>
+  <a class="skip-link" href="#conteudo">Pular para o cardápio</a>
+
+  <header class="site-header">
+    <a class="brand" href="#inicio" aria-label="Lanchonete, início">
+      <span class="brand-mark" aria-hidden="true">L</span>
+      <span>Lanchonete<span class="brand-dot">.</span></span>
+    </a>
+    <nav class="main-nav" aria-label="Navegação principal">
+      <a href="#cardapio">Cardápio</a>
+      <a href="#sobre">Nossa casa</a>
+    </nav>
+    <a class="header-cta" href="#cardapio">Ver opções <span aria-hidden="true">↓</span></a>
+  </header>
+
+  <main id="conteudo">
+    <section class="hero" id="inicio" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span aria-hidden="true">✦</span> Feito com carinho, servido quentinho</p>
+        <h1 id="hero-title">Seu próximo<br>momento <span>gostoso.</span></h1>
+        <p class="hero-description">
+          Sabores que abraçam e deixam qualquer pausa mais feliz.
+          Escolha seu favorito no nosso cardápio.
+        </p>
+        <a class="button button-dark" href="#cardapio">Explorar o cardápio <span aria-hidden="true">↘</span></a>
+        <div class="hero-note">
+          <span class="note-stars" aria-hidden="true">★★★★★</span>
+          <span>Preparado na hora, com aquele toque especial</span>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="hero-sun"></div>
+        <div class="hero-sticker">Uma pausa<br>bem gostosa!</div>
+        <img
+          src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&amp;fit=crop&amp;w=1000&amp;q=90"
+          alt=""
+          fetchpriority="high"
+          width="1000"
+          height="900">
+        <span class="hero-sparkle sparkle-one">✳</span>
+        <span class="hero-sparkle sparkle-two">✦</span>
+      </div>
+    </section>
+
+    <section class="menu-section" id="cardapio" aria-labelledby="menu-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Escolhas feitas para você</p>
+          <h2 id="menu-title">Nosso <span>cardápio</span></h2>
+        </div>
+        <p class="menu-count">{{ total_produtos }} opções esperando por você</p>
+      </div>
+
+      {% if secoes %}
+        <nav class="category-nav" aria-label="Categorias do cardápio">
+          {% for secao in secoes %}
+            <a href="#{{ secao.slug }}">{{ secao.categoria.nome }}</a>
+          {% endfor %}
+        </nav>
+
+        {% for secao in secoes %}
+          <section class="category-section" id="{{ secao.slug }}" aria-labelledby="category-title-{{ secao.slug }}">
+            <div class="category-heading">
+              <h3 id="category-title-{{ secao.slug }}">{{ secao.categoria.nome }}</h3>
+              {% if secao.categoria.descricao %}
+                <p>{{ secao.categoria.descricao }}</p>
+              {% endif %}
+            </div>
+
+            <div class="product-grid">
+              {% for item in secao.produtos %}
+                <article class="product-card{% if not item.produto.disponivel %} is-unavailable{% endif %}">
+                  <div class="product-image-wrap">
+                    <img
+                      class="product-image"
+                      src="{{ item.foto_url }}"
+                      alt="{{ item.foto_alt }}"
+                      loading="lazy"
+                      decoding="async"
+                      width="900"
+                      height="650">
+                    {% if item.produto.disponivel %}
+                      <span class="product-badge">Disponível</span>
+                    {% else %}
+                      <span class="product-badge badge-unavailable">Indisponível</span>
+                    {% endif %}
+                  </div>
+                  <div class="product-info">
+                    <div class="product-title-row">
+                      <h4>{{ item.produto.nome }}</h4>
+                      <span class="product-price">R$ {{ item.produto.preco|floatformat:2 }}</span>
+                    </div>
+                    <p class="product-category">{{ secao.categoria.nome }}</p>
+                  </div>
+                </article>
+              {% empty %}
+                <p class="empty-state">Estamos preparando novidades para esta categoria.</p>
+              {% endfor %}
+            </div>
+          </section>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">Nosso cardápio está sendo preparado. Volte em breve!</p>
+      {% endif %}
+    </section>
+
+    <section class="about-section" id="sobre" aria-labelledby="about-title">
+      <div class="about-sparkle" aria-hidden="true">✳</div>
+      <p class="eyebrow">Um pouquinho sobre nós</p>
+      <h2 id="about-title">Comida boa tem gosto de <span>cuidado.</span></h2>
+      <p>Cada pedido é preparado com atenção para transformar uma refeição simples em um momento especial.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a class="brand footer-brand" href="#inicio">
+      <span class="brand-mark" aria-hidden="true">L</span>
+      <span>Lanchonete<span class="brand-dot">.</span></span>
+    </a>
+    <p>Feito com carinho para deixar seu dia mais gostoso.</p>
+    <a class="back-top" href="#inicio">Voltar ao topo ↑</a>
+  </footer>
+</body>
+</html>

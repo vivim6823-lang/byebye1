@@ -1,19 +1,24 @@
 from decimal import Decimal
 import json
+from unittest.mock import Mock, patch
 
 from django.contrib import admin
-from django.test import SimpleTestCase, TestCase
-from rest_framework.authtoken.models import Token
-from rest_framework.test import APIClient, APITestCase
-from rest_framework.renderers import JSONRenderer
 from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
+from requests import Timeout
+from rest_framework.authtoken.models import Token
+from rest_framework.renderers import JSONRenderer
+from rest_framework.test import APIClient, APITestCase
 
-from .admin import CategoriaAdmin, ProdutoAdmin, ProdutoInline
-from .models import Categoria, Produto
+from .admin import AreaEntregaAdmin, CategoriaAdmin, ProdutoAdmin, ProdutoInline
+from .models import AreaEntrega, Categoria, Produto
 from .serializers import CategoriaSerializer, ProdutoSerializer
 
 
 class AdminConfigurationTests(TestCase):
+    def test_area_entrega_is_registered_in_admin(self):
+        self.assertIsInstance(admin.site._registry[AreaEntrega], AreaEntregaAdmin)
+
     def test_categoria_admin_has_product_inline(self):
         categoria_admin = admin.site._registry[Categoria]
 
@@ -49,6 +54,98 @@ class AdminConfigurationTests(TestCase):
 
     def test_admin_has_custom_header(self):
         self.assertEqual(admin.site.site_header, "Administração da Lanchonete")
+
+
+class CardapioPageTests(TestCase):
+    def test_homepage_renders_products_from_database(self):
+        categoria = Categoria.objects.create(
+            nome="Lanches",
+            descricao="Feitos na hora",
+        )
+        Produto.objects.create(
+            nome="X-Burger",
+            preco=Decimal("18.90"),
+            categoria=categoria,
+        )
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "X-Burger")
+        self.assertContains(response, "R$ 18,90")
+        self.assertContains(response, "Feitos na hora")
+        self.assertContains(response, "images.unsplash.com")
+        self.assertContains(response, "cardapio/css/cardapio.css")
+
+    def test_each_menu_item_has_a_matching_photo_and_alt_text(self):
+        beverages = Categoria.objects.create(nome="Bebidas")
+        snacks = Categoria.objects.create(nome="Lanches")
+        desserts = Categoria.objects.create(nome="Sobremesas")
+        photo_by_product = {
+            "Refrigerante lata": (
+                "photo-1554866585-cd94860890b7",
+                "Lata de refrigerante",
+                beverages,
+            ),
+            "Suco natural": (
+                "photo-1600271886742-f049cd451bba",
+                "Copo de suco de laranja",
+                beverages,
+            ),
+            "Água mineral": (
+                "photo-1638688569176-5b6db19f9d2a",
+                "Garrafa de água",
+                beverages,
+            ),
+            "X-Burger": (
+                "photo-1568901346375-23c9450c58cd",
+                "Hambúrguer com queijo",
+                snacks,
+            ),
+            "X-Salada": (
+                "photo-1586816001966-79b736744398",
+                "Hambúrguer com alface e tomate",
+                snacks,
+            ),
+            "X-Bacon": (
+                "photo-1700835880369-a8e1eb918474",
+                "Hambúrguer com bacon, alface, tomate e queijo",
+                snacks,
+            ),
+            "Batata frita": (
+                "photo-1630384060421-cb20d0e0649d",
+                "Cesta de batatas fritas",
+                snacks,
+            ),
+            "Brownie": (
+                "photo-1606313564200-e75d5e30476c",
+                "Brownies de chocolate",
+                desserts,
+            ),
+            "Pudim": (
+                "photo-1792860462957-11334eabf81c",
+                "Pudim com calda de caramelo",
+                desserts,
+            ),
+            "Sorvete": (
+                "photo-1497034825429-c343d7c6a68f",
+                "Sorvete em casquinha",
+                desserts,
+            ),
+        }
+        for name, (_, _, categoria) in photo_by_product.items():
+            Produto.objects.create(
+                nome=name,
+                preco=Decimal("5.00"),
+                categoria=categoria,
+            )
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        for image_id, alt_text, _ in photo_by_product.values():
+            self.assertContains(response, image_id)
+            self.assertContains(response, f'alt="{alt_text}"')
 
 
 class CategoriaSerializerTests(SimpleTestCase):
@@ -242,4 +339,186 @@ class ApiDocumentationTests(APITestCase):
 
         self.assertEqual(schema_response.status_code, 200)
         self.assertIn("openapi", schema_response.data)
+        self.assertIn("/api/municipios/", schema_response.data["paths"])
+        self.assertIn("/api/areas-entrega/", schema_response.data["paths"])
         self.assertEqual(swagger_response.status_code, 200)
+
+
+class MunicipiosApiTests(APITestCase):
+    @patch("cardapio.views.requests.get")
+    def test_returns_municipios_from_ibge(self, mock_get):
+        response_ibge = Mock()
+        response_ibge.json.return_value = [
+            {"id": 2604106, "nome": "Caruaru"},
+            {"id": 2611606, "nome": "Recife"},
+        ]
+        mock_get.return_value = response_ibge
+
+        response = self.client.get("/api/municipios/?uf=pe")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {
+                "uf": "PE",
+                "total": 2,
+                "municipios": [
+                    {"codigo_ibge": 2604106, "nome": "Caruaru"},
+                    {"codigo_ibge": 2611606, "nome": "Recife"},
+                ],
+            },
+        )
+        mock_get.assert_called_once_with(
+            "https://servicodados.ibge.gov.br/api/v1/localidades/"
+            "estados/PE/municipios",
+            timeout=(3.05, 10),
+        )
+        response_ibge.raise_for_status.assert_called_once()
+
+    @patch("cardapio.views.requests.get")
+    def test_requires_valid_uf(self, mock_get):
+        for url in ("/api/municipios/", "/api/municipios/?uf=", "/api/municipios/?uf=XX"):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 400)
+
+        mock_get.assert_not_called()
+
+    @patch("cardapio.views.requests.get")
+    def test_returns_503_on_ibge_timeout(self, mock_get):
+        mock_get.side_effect = Timeout
+
+        response = self.client.get("/api/municipios/?uf=PE")
+
+        self.assertEqual(response.status_code, 503)
+
+    @patch("cardapio.views.requests.get")
+    def test_returns_503_on_invalid_ibge_response(self, mock_get):
+        response_ibge = Mock()
+        response_ibge.json.return_value = {"erro": "indisponível"}
+        mock_get.return_value = response_ibge
+
+        response = self.client.get("/api/municipios/?uf=PE")
+
+        self.assertEqual(response.status_code, 503)
+
+
+class AreaEntregaApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="area-admin",
+            password="test-password",
+        )
+        self.client.force_authenticate(user=user)
+
+    @patch("cardapio.serializers.requests.get")
+    def test_creates_area_for_existing_ibge_code(self, mock_get):
+        ibge_response = Mock()
+        ibge_response.status_code = 200
+        ibge_response.json.return_value = {"id": 2611606, "nome": "Recife"}
+        mock_get.return_value = ibge_response
+
+        response = self.client.post(
+            "/api/areas-entrega/",
+            {
+                "municipio": "Recife",
+                "codigo_ibge": "2611606",
+                "taxa_entrega": "7.50",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["codigo_ibge"], "2611606")
+        self.assertTrue(
+            AreaEntrega.objects.filter(
+                municipio="Recife",
+                codigo_ibge="2611606",
+                taxa_entrega=Decimal("7.50"),
+            ).exists()
+        )
+        mock_get.assert_called_once_with(
+            "https://servicodados.ibge.gov.br/api/v1/localidades/"
+            "municipios/2611606",
+            timeout=(3.05, 10),
+        )
+
+    @patch("cardapio.serializers.requests.get")
+    def test_rejects_nonexistent_ibge_code(self, mock_get):
+        ibge_response = Mock()
+        ibge_response.status_code = 200
+        ibge_response.json.return_value = []
+        mock_get.return_value = ibge_response
+
+        response = self.client.post(
+            "/api/areas-entrega/",
+            {
+                "municipio": "Município inexistente",
+                "codigo_ibge": "9999999",
+                "taxa_entrega": "7.50",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "O código IBGE 9999999 não foi encontrado.",
+            str(response.data["codigo_ibge"]),
+        )
+        self.assertFalse(AreaEntrega.objects.exists())
+
+    @patch("cardapio.serializers.requests.get")
+    def test_returns_503_when_ibge_request_times_out(self, mock_get):
+        mock_get.side_effect = Timeout
+
+        response = self.client.post(
+            "/api/areas-entrega/",
+            {
+                "municipio": "Recife",
+                "codigo_ibge": "2611606",
+                "taxa_entrega": "7.50",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(AreaEntrega.objects.exists())
+
+    @patch("cardapio.serializers.requests.get")
+    def test_rejects_code_with_invalid_format_without_calling_ibge(self, mock_get):
+        response = self.client.post(
+            "/api/areas-entrega/",
+            {
+                "municipio": "Recife",
+                "codigo_ibge": "ABC",
+                "taxa_entrega": "7.50",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("7 dígitos", str(response.data["codigo_ibge"]))
+        mock_get.assert_not_called()
+
+    @patch("cardapio.serializers.requests.get")
+    def test_rejects_duplicate_ibge_code_without_calling_ibge(self, mock_get):
+        AreaEntrega.objects.create(
+            municipio="Recife",
+            codigo_ibge="2611606",
+            taxa_entrega=Decimal("7.50"),
+        )
+
+        response = self.client.post(
+            "/api/areas-entrega/",
+            {
+                "municipio": "Recife novamente",
+                "codigo_ibge": "2611606",
+                "taxa_entrega": "8.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(response.data["codigo_ibge"])
+        self.assertEqual(AreaEntrega.objects.count(), 1)
+        mock_get.assert_not_called()

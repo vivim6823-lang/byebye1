@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Categoria, Produto
+from .models import AreaEntrega, Categoria, Produto
 
 
 class ProdutoInline(admin.TabularInline):
@@ -25,6 +25,12 @@ class ProdutoAdmin(admin.ModelAdmin):
     @admin.action(description="Marcar produtos selecionados como indisponíveis")
     def marcar_indisponiveis(self, request, queryset):
         queryset.update(disponivel=False)
+
+
+@admin.register(AreaEntrega)
+class AreaEntregaAdmin(admin.ModelAdmin):
+    list_display = ("municipio", "codigo_ibge", "taxa_entrega")
+    search_fields = ("municipio", "codigo_ibge")
 
 
 admin.site.site_header = "Administração da Lanchonete"

@@ -16,10 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from cardapio.views import pagina_cardapio
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
 
 urlpatterns = [
+    path('', pagina_cardapio, name='pagina-cardapio'),
     path('admin/', admin.site.urls),
     path('api/token/', obtain_auth_token, name='api-token-auth'),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

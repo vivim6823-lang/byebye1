@@ -27,3 +27,24 @@ class Produto(models.Model):
                 name='produto_preco_nao_negativo',
             ),
         ]
+
+
+class AreaEntrega(models.Model):
+    municipio = models.CharField(max_length=100)
+    codigo_ibge = models.CharField(max_length=7, unique=True)
+    taxa_entrega = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(taxa_entrega__gte=0),
+                name="area_entrega_taxa_nao_negativa",
+            ),
+        ]
+
+    def __str__(self):
+        return self.municipio
