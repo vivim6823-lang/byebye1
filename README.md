@@ -539,14 +539,4 @@ Adicionar imagens mostrando:
 
 ## Considerações finais
 
-Esse projeto foi uma oportunidade de colocar em prática os conhecimentos que estou aprendendo no curso de Análise e Desenvolvimento de Sistemas.
-
-Durante o desenvolvimento consegui aprender mais sobre Python, Django, criação de APIs, banco de dados, validações e testes.
-
-Também consegui entender melhor como funciona a comunicação entre sistemas através de uma API e como utilizar informações de serviços externos, como o IBGE.
-
-Sei que ainda tenho muito para aprender, mas o projeto me ajudou a ter mais contato com a programação e entender melhor como funciona o desenvolvimento de um sistema.
-
----
-
-**Projeto desenvolvido para o curso de Análise e Desenvolvimento de Sistemas — Senac.**
+Esse projeto foi uma oportunidade de colocar em prática os conhecimentos que estou aprendendo no curso de Análise e Desenvolvimento de Sistemas e a despedida do nosso professor
